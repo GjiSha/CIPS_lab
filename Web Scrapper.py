@@ -4,11 +4,16 @@ from selenium.webdriver.common.by import By
 import time
 from Config import USER_NAME, PASSWORD
 import json
+import pyperclip
 import os
 import requests
 
+
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+media_directory = "downloaded_media"
+os.makedirs(media_directory, exist_ok=True)
 
 # Base class for crawling posts on social media platforms
 class PostCrawler:
@@ -84,96 +89,104 @@ class LinkedInCrawler(PostCrawler):
             print(f"No more 'Next' button found or error occurred: {e}")
             return False  # Return False if 'Next' button was not found
 
-
-
-
     def crawl(self, search_string: str, crawl_replies: bool = False):
         """Crawl LinkedIn posts based on the search string."""
         # Type the search string into the search input field
-        search_box = self.driver.find_element("input[role='combobox'][placeholder='Search']")
+        search_box = self.driver.find_element(By.CSS_SELECTOR, "input[role='combobox'][placeholder='Search']")
         search_box.send_keys(search_string)
+        search_box.send_keys(Keys.RETURN)  # Press Enter to perform the search
 
-        # Press Enter to perform the search
-        search_box.send_keys(Keys.RETURN)
-
-        # Wait for posts to load (update with actual selector for posts)
+        # Wait for posts to load
         self.driver.wait_for_element_visible("div.feed-shared-update-v2")  # Update with actual selector
 
         while True:
+            # Infinite scroll to load all posts on the page
+            self.infinite_scroll()  # Ensure this function waits until all posts are loaded
 
-            # Crawl posts and media based on search results
-            post_elements = self.driver.find_elements("div.feed-shared-update-v2")  # Update with actual selector for posts
-            self.infinite_scroll()
+            # Now capture all post elements after scrolling
+            post_elements = self.driver.find_elements(By.CSS_SELECTOR,
+                                                      "div.feed-shared-update-v2")  # Update with actual selector
+
             for post in post_elements:
                 try:
+                    # Extract author name
                     author_name = post.find_element(By.XPATH, ".//span[@aria-hidden='true']").text
-                    print(author_name)
+                    print(f"Author: {author_name}")
+
+                    # Extract profile URL
                     profile_url_element = post.find_element(By.CSS_SELECTOR,
-                                                              "a.app-aware-link.update-components-actor__meta-link")
-
-                    # Extract the href attribute (URL of the profile)
+                                                            "a.app-aware-link.update-components-actor__meta-link")
                     profile_url = profile_url_element.get_attribute("href")
-                    print(profile_url)
+                    print(f"Profile URL: {profile_url}")
 
-
-
+                    # Extract likes count
                     try:
                         likes_count_element = post.find_element(By.CSS_SELECTOR,
                                                                 "span.social-details-social-counts__reactions-count")
                         likes_count = likes_count_element.text.strip()
-
                     except:
-                        likes_count=0
+                        likes_count = 0
+                    print(f"Likes Count: {likes_count}")
 
-
-
-                    # Extract the text content (number of likes) and strip any extra spaces
-
-                    print(f"likes count: {likes_count}")
-
-                    # Extract Comments Count
-
-                    
+                    # Extract comments count
                     try:
                         comments_button = post.find_element(By.CSS_SELECTOR,
                                                             "li.social-details-social-counts__comments button")
                         comments_count = comments_button.get_attribute("aria-label").split()[0]
                     except:
-                        comments_count=0
-
+                        comments_count = 0
                     print(f"Comments Count: {comments_count}")
 
-                    # Extract Shares Count
-
-
+                    # Extract shares count
                     try:
-                        shares_button = post.find_element(By.XPATH,
-                                                          ".//button[contains(@aria-label, 'reposts')]")
+                        shares_button = post.find_element(By.XPATH, ".//button[contains(@aria-label, 'reposts')]")
                         shares_count = shares_button.get_attribute("aria-label").split()[0]
                     except:
                         shares_count = 0
+                    print(f"Shares Count: {shares_count}")
 
-                    print(f"shares Count: {shares_count}")
+                    # Initialize media list for each post
+                    media = []
 
+                    # Extract images specific to this post
+                    try:
+                        image_elements = post.find_elements(By.CLASS_NAME, "ivm-view-attr__img--centered")  # Update with actual image selector
+                        for image_element in image_elements:
+                            image_url = image_element.get_attribute("src")
+                            media.append({"type": "image", "url": image_url})
+                            print(f"Image URL for Post: {image_url}")
+                    except Exception as e:
+                        print(f"No images found in post: {e}")
+
+                    # Extract videos specific to this post
+                    try:
+                        video_elements = post.find_elements(By.CSS_SELECTOR,
+                                                            "video.vjs-tech")  # Update with actual video selector
+                        for video_element in video_elements:
+                            video_url = video_element.get_attribute("src")
+                            media.append({"type": "video", "url": video_url})
+                            print(f"Video URL for Post: {video_url}")
+                    except Exception as e:
+                        print(f"No videos found in post: {e}")
+
+                    # Collect data for each post
                     post_data = {
                         'author_name': author_name,
                         'profile_url': profile_url,
-
                         'likes': likes_count,
                         'shares': shares_count,
-                        #'media': media,
+                        'media': media,
                         'comments': comments_count,
-                        #'replies': []
                     }
                     self.posts.append(post_data)
-
-
 
                 except Exception as e:
                     print(f"Error while processing a post: {e}")
 
+            # Click the "Next" button and break the loop if there are no more pages
             if not self.click_next_button():
-               break
+                break
+            #break
 
 # Usage example:
 
@@ -193,4 +206,4 @@ with open('Output.json', 'w') as op:
     json.dump(crawler.posts,op, indent=4 )
 
 # Close the browser manually when all tasks are complete.
-crawler.close_browser()
+#crawler.close_browser()
