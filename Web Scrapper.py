@@ -2,6 +2,8 @@ from seleniumbase import Driver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import time
+from Config import USER_NAME, PASSWORD
+import json
 import os
 import requests
 
@@ -70,7 +72,11 @@ class LinkedInCrawler(PostCrawler):
     def click_next_button(self):
         """Click the 'Next' button if it exists."""
         try:
-            next_button = self.driver.find_element(By.XPATH, "//*[@id='ember572']")
+            next_button = self.driver.find_element(By.XPATH, "//button[@aria-label='Next']")
+            # Check if the button is disabled
+            if 'disabled' in next_button.get_attribute("class") or not next_button.is_enabled():
+                print("Next button is disabled or not clickable.")
+                return False
             next_button.click()
             time.sleep(2)  # Wait for new content to load after clicking 'Next'
             return True  # Return True if 'Next' button was found and clicked
@@ -78,23 +84,8 @@ class LinkedInCrawler(PostCrawler):
             print(f"No more 'Next' button found or error occurred: {e}")
             return False  # Return False if 'Next' button was not found
 
-    def get_comments_count(post, path):
-        try:
-            # Locate the button containing the comments count using its class or aria-label
-            comments_button = post.find_element(By.CSS_SELECTOR, path)
 
-            # Extract the aria-label attribute (e.g., "13 comments")
-            comments_count_text = comments_button.get_attribute("aria-label")
 
-            # Extract just the number by splitting the string (e.g., "13 comments" -> "13")
-            comments_count = int(comments_count_text.split()[0])
-
-            print(f"Comments Count: {comments_count}")
-            return comments_count
-
-        except Exception as e:
-            print("No comments found.")
-            return 0  # Return 0 if no comments are found
 
     def crawl(self, search_string: str, crawl_replies: bool = False):
         """Crawl LinkedIn posts based on the search string."""
@@ -123,41 +114,51 @@ class LinkedInCrawler(PostCrawler):
                     # Extract the href attribute (URL of the profile)
                     profile_url = profile_url_element.get_attribute("href")
                     print(profile_url)
-                    likes_count_element = post.find_element(By.CSS_SELECTOR,
-                                                            "span.social-details-social-counts__reactions-count")
+
+
+
+                    try:
+                        likes_count_element = post.find_element(By.CSS_SELECTOR,
+                                                                "span.social-details-social-counts__reactions-count")
+                        likes_count = likes_count_element.text.strip()
+
+                    except:
+                        likes_count=0
+
 
 
                     # Extract the text content (number of likes) and strip any extra spaces
-                    likes_count = likes_count_element.text.strip()
-                    print(likes_count)
 
-                    comments_button = post.find_element(By.CSS_SELECTOR,
-                                                          "li.social-details-social-counts__comments button")
+                    print(f"likes count: {likes_count}")
 
-                    # Extract the aria-label attribute (e.g., "13 comments")
-                    comments_count_text = comments_button.get_attribute("aria-label")
+                    # Extract Comments Count
 
-                    # Extract just the number by splitting the string (e.g., "13 comments" -> "13")
-                    comments_count = int(comments_count_text.split()[0])
+                    
+                    try:
+                        comments_button = post.find_element(By.CSS_SELECTOR,
+                                                            "li.social-details-social-counts__comments button")
+                        comments_count = comments_button.get_attribute("aria-label").split()[0]
+                    except:
+                        comments_count=0
 
                     print(f"Comments Count: {comments_count}")
 
+                    # Extract Shares Count
 
-                    shares_button = post.find_element(By.CSS_SELECTOR,
-                                                        "li.social-details-social-counts__item button[aria-label*='reposts']")
 
-                    # Extract the aria-label attribute (e.g., "38 reposts")
-                    shares_count_text = shares_button.get_attribute("aria-label")
+                    try:
+                        shares_button = post.find_element(By.XPATH,
+                                                          ".//button[contains(@aria-label, 'reposts')]")
+                        shares_count = shares_button.get_attribute("aria-label").split()[0]
+                    except:
+                        shares_count = 0
 
-                    # Extract just the number by splitting the string (e.g., "38 reposts" -> "38")
-                    shares_count = int(shares_count_text.split()[0])
-
-                    print(f"Shares Count: {shares_count}")
-
+                    print(f"shares Count: {shares_count}")
 
                     post_data = {
                         'author_name': author_name,
                         'profile_url': profile_url,
+
                         'likes': likes_count,
                         'shares': shares_count,
                         #'media': media,
@@ -170,12 +171,14 @@ class LinkedInCrawler(PostCrawler):
 
                 except Exception as e:
                     print(f"Error while processing a post: {e}")
-            #self.click_next_button()
+
+            if not self.click_next_button():
+               break
 
 # Usage example:
 
-username_input = "ganjis032@gmail.com"
-password_input = "Robisk49$"
+username_input = USER_NAME
+password_input = PASSWORD
 
 crawler = LinkedInCrawler()
 
@@ -186,6 +189,8 @@ crawler.login(username_input, password_input)
 crawler.crawl('"black lives matter" OR "all lives matter"', crawl_replies=True)
 
 print(crawler.posts)
+with open('Output.json', 'w') as op:
+    json.dump(crawler.posts,op, indent=4 )
 
 # Close the browser manually when all tasks are complete.
 crawler.close_browser()
