@@ -1,2 +1,3 @@
-USER_NAME='ganjis032@gmail.com' #<'Write your username'>
-PASSWORD= 'Robisk49$' # write your password
+USER_NAME= '<Write your username>'
+PASSWORD=   '<write your password>'
+SEARCH_STRING='"black lives matter" OR "all lives matter"' # enter you search string

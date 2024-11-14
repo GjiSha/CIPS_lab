@@ -2,7 +2,7 @@ from seleniumbase import Driver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import time
-from Config import USER_NAME, PASSWORD
+from Config import USER_NAME, PASSWORD,SEARCH_STRING
 import json
 import pyperclip
 import os
@@ -89,6 +89,22 @@ class LinkedInCrawler(PostCrawler):
             print(f"No more 'Next' button found or error occurred: {e}")
             return False  # Return False if 'Next' button was not found
 
+    def scroll_comments_section(self, post):
+        """Helper function to scroll within the comments section of a post."""
+        comments_section = post.find_element(By.CLASS_NAME, "comments-comments-list")
+        self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", comments_section)
+        time.sleep(2)  # Adjust sleep as necessary for dynamic loading
+
+    def expand_replies(self, comment):
+        """Helper function to expand replies for a given comment."""
+        try:
+            more_replies_button = comment.find_element(By.CSS_SELECTOR,
+                                                       "button.comments-comment-item__show-replies-button")
+            self.driver.execute_script("arguments[0].click();", more_replies_button)
+            time.sleep(1)  # Adjust as necessary
+        except:
+            pass  # Ignore if no "show replies" button
+
     def crawl(self, search_string: str, crawl_replies: bool = False):
         """Crawl LinkedIn posts based on the search string."""
         # Type the search string into the search input field
@@ -169,6 +185,7 @@ class LinkedInCrawler(PostCrawler):
                     except Exception as e:
                         print(f"No videos found in post: {e}")
 
+
                     # Collect data for each post
                     post_data = {
                         'author_name': author_name,
@@ -176,12 +193,15 @@ class LinkedInCrawler(PostCrawler):
                         'likes': likes_count,
                         'shares': shares_count,
                         'media': media,
-                        'comments': comments_count,
+                        'comments_count': comments_count,
+                        #'comments': comments
                     }
                     self.posts.append(post_data)
 
                 except Exception as e:
                     print(f"Error while processing a post: {e}")
+
+
 
             # Click the "Next" button and break the loop if there are no more pages
             if not self.click_next_button():
@@ -198,8 +218,9 @@ crawler = LinkedInCrawler()
 # Log in to LinkedIn using provided credentials.
 crawler.login(username_input, password_input)
 
+search_string=SEARCH_STRING
 # Perform crawling operation after logging in.
-crawler.crawl('"black lives matter" OR "all lives matter"', crawl_replies=True)
+crawler.crawl(search_string, crawl_replies=True)
 
 print(crawler.posts)
 with open('Output.json', 'w') as op:
