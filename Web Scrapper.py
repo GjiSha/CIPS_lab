@@ -227,4 +227,4 @@ with open('Output.json', 'w') as op:
     json.dump(crawler.posts,op, indent=4 )
 
 # Close the browser manually when all tasks are complete.
-#crawler.close_browser()
+crawler.close_browser()
